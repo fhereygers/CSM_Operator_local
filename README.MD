@@ -61,7 +61,7 @@ helm install strimzi-cluster-operator \
   --version 1.6.0-b99
 ```
 
-
+Verify your installation
 ```
 kubectl get deployments --namespace cld-streaming
 
@@ -71,6 +71,50 @@ kubectl get deployments --namespace cld-streaming
 kubectl get pods --namespace cld-streaming
 ```
 
+## Deploy a kafka cluster
+
+kubectl apply \
+  --filename Kafka.yaml,broker.yaml,controller.yaml \
+  --namespace cld-streaming
+
+kubectl get pods --namespace cld-streaming
+
+## Validate the kafka cluster
+
+IMAGE=$(kubectl get pod my-cluster-broker-0  --namespace cld-streaming --output jsonpath='{.spec.containers[0].image}')
+
+
+kubectl run kafka-admin -it \
+  --namespace cld-streaming \
+  --image=$IMAGE \
+  --rm=true \
+  --restart=Never \
+  --command -- /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server my-cluster-kafka-bootstrap:9092 \
+    --create \
+    --topic my-topic
+
+
+
+kubectl run kafka-producer -it \
+  --namespace cld-streaming \
+  --image=$IMAGE \
+  --rm=true \
+  --restart=Never \
+  --command -- /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server my-cluster-kafka-bootstrap:9092 \
+    --topic my-topic
+
+
+kubectl run kafka-consumer -it \
+  --namespace cld-streaming \
+  --image=$IMAGE \
+  --rm=true \
+  --restart=Never \
+  --command -- /opt/kafka/bin/kafka-console-consumer.sh \
+    --bootstrap-server my-cluster-kafka-bootstrap:9092 \
+    --topic my-topic \
+    --from-beginning
 
 
 
@@ -80,7 +124,6 @@ kubectl get pods --namespace cld-streaming
 
 
 
-
-
+## Deploy Surveyor
 
 minikube service cloudera-surveyor-service --namespace cld-streaming
