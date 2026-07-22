@@ -50,9 +50,7 @@ kubectl create secret docker-registry cloudera-creds \
   --docker-username="$CLOUDERA_LICENSE_USER" \
   --docker-password="$CLOUDERA_LICENSE_PASSWORD" 
 ```
-
-
-
+Install Strimzi with helm install
 ```
 helm install strimzi-cluster-operator \
   --namespace cld-streaming \
