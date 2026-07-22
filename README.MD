@@ -36,12 +36,12 @@ Create a namespace in your Kubernetes cluster
 ```
 kubectl create namespace cld-streaming
 ```
-Log in into the cloudera docker registry
+Log in into the cloudera docker registry with helm
 
 ```
 helm registry login container.repository.cloudera.com -u "$CLOUDERA_LICENSE_USER" -p "$CLOUDERA_LICENSE_PASSWORD"
 ```
-
+Create a Kubernetes secret containing your cloudera credentials
 
 ```
 kubectl create secret docker-registry cloudera-creds \
