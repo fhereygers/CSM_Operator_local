@@ -29,6 +29,50 @@ Define envirnomental variables that will be used in the subsequent commands
 export CLOUDERA_LICENSE_USER="<User_Name>"
 export CLOUDERA_LICENSE_PASSWORD="User_password"
 ```
+## Installing Strimzi with Helm
+
+Create a namespace in your Kubernetes cluster
+
+```
+kubectl create namespace cld-streaming
+```
+Log in into the cloudera docker registry
+
+```
+helm registry login container.repository.cloudera.com -u "$CLOUDERA_LICENSE_USER" -p "$CLOUDERA_LICENSE_PASSWORD"
+```
+
+
+```
+kubectl create secret docker-registry cloudera-creds \
+  --namespace cld-streaming \
+  --docker-server=container.repository.cloudera.com \
+  --docker-username="$CLOUDERA_LICENSE_USER" \
+  --docker-password="$CLOUDERA_LICENSE_PASSWORD" 
+```
+
+
+
+```
+helm install strimzi-cluster-operator \
+  --namespace cld-streaming \
+  --set 'image.imagePullSecrets[0].name=cloudera-creds' \
+  --set-file clouderaLicense.fileContent=frank_hereygers_2025_2026_cloudera_license.txt \
+  --set watchAnyNamespace=true \
+  oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator \
+  --version 1.6.0-b99
+```
+
+
+```
+kubectl get deployments --namespace cld-streaming
+
+```
+
+```
+kubectl get pods --namespace cld-streaming
+```
+
 
 
 
