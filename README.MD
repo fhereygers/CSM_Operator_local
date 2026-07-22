@@ -11,17 +11,15 @@ Setup with pod man
 
 
 ```
-{
-	podman machine init --cpus 6 --memory 14336
-  podman machine start
-
-}
+podman machine init --cpus 6 --memory 14336
+podman machine start
 ```
 
 
 
 
-# Spin up Minikube with enough resources for the full stack
+Spin up Minikube with enough resources for the full stack
+
 minikube start --cpus 4 --memory 12288
 
 
