@@ -75,11 +75,15 @@ kubectl get pods --namespace cld-streaming
 The repository contains following 3 yaml files with a configuration as documented in the product documentation:
 kafka.yaml, broker.yaml, controller.yaml (Refer to this [documentation link](https://docs.cloudera.com/csm-operator/1.6/kafka-deploy-configure/topics/csm-op-deploying-kafka.html) for a detailed discussion on configuration parameters)
 
+Deploy the cluster
+
 ```
 kubectl apply \
   --filename Kafka.yaml,broker.yaml,controller.yaml \
   --namespace cld-streaming
 ```
+
+Verify that the pods are created.
 
 ```
 kubectl get pods --namespace cld-streaming
@@ -87,6 +91,8 @@ kubectl get pods --namespace cld-streaming
 
 
 ## Validate the kafka cluster
+
+Create a topic 
 
 ```
 IMAGE=$(kubectl get pod my-cluster-broker-0  --namespace cld-streaming --output jsonpath='{.spec.containers[0].image}')
@@ -101,6 +107,8 @@ kubectl run kafka-admin -it \
     --topic my-topic
 ```
 
+Produce messages to the topic by starting the starting the producer and typing a few words
+
 ```
 kubectl run kafka-producer -it \
   --namespace cld-streaming \
@@ -112,6 +120,14 @@ kubectl run kafka-producer -it \
     --topic my-topic
 ```
 
+```
+>hello
+>csm
+>operator
+>^C
+```
+
+Consume the messages
 
 ```
 kubectl run kafka-consumer -it \
