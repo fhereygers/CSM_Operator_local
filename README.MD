@@ -4,12 +4,12 @@ Following steps deploy CSM on Minikube running on your Macbook.
 
 ## Pre-requisites
 
-- Docker or podman
-- Minikube 
-- helm
+- Following packages need to be installed: Docker (or podman), Minikube, helm
 - valid cloudera license and its corresponding user name and password, generated on www.cloudera.com in the download section.
 
-In case of podman make sure that the virtual machine is big enough
+If you clone this repository and also add the license file in the directory, the below commands should work without much changes.
+
+In case of podman make sure that the virtual machine is big enough.
 
 ```
 podman machine init --cpus 6 --memory 14336
