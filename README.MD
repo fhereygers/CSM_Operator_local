@@ -143,11 +143,13 @@ kubectl run kafka-consumer -it \
 
 ## Deploy Surveyor
 
+Obtain the bootstrap servers
+
 ```
 kubectl get kafka my-cluster -n cld-streaming -o jsonpath='{.status.listeners[?(@.name=="plain")].bootstrapServers}'
 ```
 
-Create a file surveyor.yaml with 
+Create a file surveyor.yaml with below settings, for bootstrapservers take the value you just obtained with the previous command
 
 ```
 clusterConfigs:
@@ -168,6 +170,8 @@ surveyorConfig:
 tlsConfigs:
   enabled: false
 ```
+
+Install cloudera Surveyor with helm install
 
 ```
 helm install cloudera-surveyor \
