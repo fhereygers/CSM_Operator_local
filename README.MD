@@ -26,8 +26,8 @@ minikube start --cpus 4 --memory 12288
 Define following environmental variables that will be used in the subsequent commands
 
 ```
-export CLOUDERA_LICENSE_USER="<User_Name>"
-export CLOUDERA_LICENSE_PASSWORD="User_password"
+export CLOUDERA_LICENSE_USER="<Your_User_Name>"
+export CLOUDERA_LICENSE_PASSWORD="<Your_User_password>"
 ```
 ## Installing Strimzi with Helm
 
@@ -55,7 +55,7 @@ Install Strimzi with helm install
 helm install strimzi-cluster-operator \
   --namespace cld-streaming \
   --set 'image.imagePullSecrets[0].name=cloudera-creds' \
-  --set-file clouderaLicense.fileContent=frank_hereygers_2025_2026_cloudera_license.txt \
+  --set-file clouderaLicense.fileContent=<Your_license_file_name> \
   --set watchAnyNamespace=true \
   oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator \
   --version 1.6.0-b99
@@ -158,7 +158,7 @@ helm install cloudera-surveyor \
   --namespace cld-streaming \
   --values surveyor.yaml \
   --set 'image.imagePullSecrets=cloudera-creds' \
-  --set-file clouderaLicense.fileContent=frank_hereygers_2025_2026_cloudera_license.txt  \
+  --set-file clouderaLicense.fileContent=<Your_license_file_name>  \
   oci://container.repository.cloudera.com/cloudera-helm/csm-operator/surveyor \
   --version 1.6.0-b99
 ```
