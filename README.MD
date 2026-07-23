@@ -23,7 +23,7 @@ Open a terminal window and Spin up Minikube with enough resources for the full s
 ```
 minikube start --cpus 4 --memory 12288
 ```
-Define envirnomental variables that will be used in the subsequent commands
+Define following environmental variables that will be used in the subsequent commands
 
 ```
 export CLOUDERA_LICENSE_USER="<User_Name>"
@@ -64,7 +64,6 @@ helm install strimzi-cluster-operator \
 Verify your installation
 ```
 kubectl get deployments --namespace cld-streaming
-
 ```
 
 ```
@@ -72,6 +71,9 @@ kubectl get pods --namespace cld-streaming
 ```
 
 ## Deploy a kafka cluster
+
+The repository contains following 3 yaml files with a configuration as documented in the product documentation:
+kafka.yaml, broker.yaml, controller.yaml (Refer to this [documentation link](https://docs.cloudera.com/csm-operator/1.6/kafka-deploy-configure/topics/csm-op-deploying-kafka.html))
 
 kubectl apply \
   --filename Kafka.yaml,broker.yaml,controller.yaml \
@@ -81,9 +83,8 @@ kubectl get pods --namespace cld-streaming
 
 ## Validate the kafka cluster
 
+```
 IMAGE=$(kubectl get pod my-cluster-broker-0  --namespace cld-streaming --output jsonpath='{.spec.containers[0].image}')
-
-
 kubectl run kafka-admin -it \
   --namespace cld-streaming \
   --image=$IMAGE \
@@ -93,7 +94,7 @@ kubectl run kafka-admin -it \
     --bootstrap-server my-cluster-kafka-bootstrap:9092 \
     --create \
     --topic my-topic
-
+```
 
 
 kubectl run kafka-producer -it \
