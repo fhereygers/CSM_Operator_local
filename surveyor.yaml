@@ -1,0 +1,17 @@
+clusterConfigs:
+  clusters:
+    - clusterName: my-cluster
+      tags:
+        - csm1.6
+      bootstrapServers: my-cluster-kafka-bootstrap.cld-streaming.svc:9092 
+      adminOperationTimeout: PT1M
+      authorization:
+        enabled: false
+      commonClientConfig:
+        security.protocol: PLAINTEXT
+surveyorConfig:
+  surveyor:
+    authentication:
+      enabled: false
+tlsConfigs:
+  enabled: false
