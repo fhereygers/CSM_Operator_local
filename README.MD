@@ -73,13 +73,18 @@ kubectl get pods --namespace cld-streaming
 ## Deploy a kafka cluster
 
 The repository contains following 3 yaml files with a configuration as documented in the product documentation:
-kafka.yaml, broker.yaml, controller.yaml (Refer to this [documentation link](https://docs.cloudera.com/csm-operator/1.6/kafka-deploy-configure/topics/csm-op-deploying-kafka.html))
+kafka.yaml, broker.yaml, controller.yaml (Refer to this [documentation link](https://docs.cloudera.com/csm-operator/1.6/kafka-deploy-configure/topics/csm-op-deploying-kafka.html) for a detailed discussion on configuration parameters)
 
+```
 kubectl apply \
   --filename Kafka.yaml,broker.yaml,controller.yaml \
   --namespace cld-streaming
+```
 
+```
 kubectl get pods --namespace cld-streaming
+```
+
 
 ## Validate the kafka cluster
 
@@ -96,7 +101,7 @@ kubectl run kafka-admin -it \
     --topic my-topic
 ```
 
-
+```
 kubectl run kafka-producer -it \
   --namespace cld-streaming \
   --image=$IMAGE \
@@ -105,8 +110,10 @@ kubectl run kafka-producer -it \
   --command -- /opt/kafka/bin/kafka-console-producer.sh \
     --bootstrap-server my-cluster-kafka-bootstrap:9092 \
     --topic my-topic
+```
 
 
+```
 kubectl run kafka-consumer -it \
   --namespace cld-streaming \
   --image=$IMAGE \
@@ -116,15 +123,52 @@ kubectl run kafka-consumer -it \
     --bootstrap-server my-cluster-kafka-bootstrap:9092 \
     --topic my-topic \
     --from-beginning
-
-
-
-
-
-
-
-
+```
 
 ## Deploy Surveyor
 
+```
+kubectl get kafka my-cluster -n cld-streaming -o jsonpath='{.status.listeners[?(@.name=="plain")].bootstrapServers}'
+```
+
+Create a file surveyor.yaml with 
+
+```
+clusterConfigs:
+  clusters:
+    - clusterName: my-cluster
+      tags:
+        - csm1.6
+      bootstrapServers: my-cluster-kafka-bootstrap.cld-streaming.svc:9092 
+      adminOperationTimeout: PT1M
+      authorization:
+        enabled: false
+      commonClientConfig:
+        security.protocol: PLAINTEXT
+surveyorConfig:
+  surveyor:
+    authentication:
+      enabled: false
+tlsConfigs:
+  enabled: false
+```
+
+```
+helm install cloudera-surveyor \
+  --namespace cld-streaming \
+  --values surveyor.yaml \
+  --set 'image.imagePullSecrets=cloudera-creds' \
+  --set-file clouderaLicense.fileContent=frank_hereygers_2025_2026_cloudera_license.txt  \
+  oci://container.repository.cloudera.com/cloudera-helm/csm-operator/surveyor \
+  --version 1.6.0-b99
+```
+
+
+```
 minikube service cloudera-surveyor-service --namespace cld-streaming
+```
+
+
+
+
+
