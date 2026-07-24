@@ -192,7 +192,7 @@ Now all settings can be made over the UI.
 
 
 <br/>
-<img src="surveyorui.png" width="90%">
+<img src="surveyor_ui.png" width="90%">
 <br/>
 
 
