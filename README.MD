@@ -188,6 +188,13 @@ helm install cloudera-surveyor \
 minikube service cloudera-surveyor-service --namespace cld-streaming
 ```
 
+Now all settings can be made over the UI.
+
+
+<br/>
+<img src="surveyorui.png" width="90%">
+<br/>
+
 
 
 
