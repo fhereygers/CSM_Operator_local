@@ -196,6 +196,37 @@ Now all settings can be made over the UI.
 <br/>
 
 
+## Deploy Schema Registry
+
+Create the sr-values.yaml files with following values
+
+```
+tls:
+  enabled: false
+authentication:
+  oauth:
+    enabled: false
+authorization:
+  simple:
+    enabled: false
+database:
+  type: in-memory
+service:
+  type: NodePort
+```
+
+Execute following helm command to install Schema Registry
+
+```
+helm install schema-registry \
+--namespace cld-streaming \
+--version 1.6.0-b99 \
+--values sr-values.yaml \
+--set "image.imagePullSecrets[0].name=cloudera-creds" \
+oci://container.repository.cloudera.com/cloudera-helm/csm-operator/schema-registry 
+```
+
+
 
 
 
