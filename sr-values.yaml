@@ -1,0 +1,13 @@
+tls:
+  enabled: false
+authentication:
+  oauth:
+    enabled: false
+authorization:
+  simple:
+    enabled: false
+database:
+  type: in-memory
+service:
+  type: NodePort
+
