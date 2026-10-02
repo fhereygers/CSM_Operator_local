@@ -253,11 +253,18 @@ To display the producer output, open a separate terminal window and run
 kubectl logs -f telecom-cdr-producer-pod -n cld-streaming
 ```
 
+<br/>
+<img src="producer.png" width="90%">
+<br/>
+
 To display the consumer output, open a separate terminal window and run
 ```
 kubectl logs -f telecom-cdr-consumer-pod -n cld-streaming
 ```
 
+<br/>
+<img src="consumer.png" width="90%">
+<br/>
 
 To stop the kafka clients run following command
 
