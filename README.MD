@@ -248,6 +248,17 @@ Start the kafka producer pod and the kafka consumer pod with following command
 kubectl apply -f cdr-demo-pod.yaml -n cld-streaming  
 ```
 
+To display the producer output, open a separate terminal window and run
+```
+kubectl logs -f telecom-cdr-producer-pod -n cld-streaming
+```
+
+To display the consumer output, open a separate terminal window and run
+```
+kubectl logs -f telecom-cdr-consumer-pod -n cld-streaming
+```
+
+
 To stop the kafka clients run following command
 
 ```
