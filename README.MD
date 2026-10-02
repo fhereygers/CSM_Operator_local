@@ -263,7 +263,7 @@ kubectl logs -f telecom-cdr-consumer-pod -n cld-streaming
 ```
 
 <br/>
-<img src="consumer.png" width="90%">
+<img src="consumer.png" width="60%">
 <br/>
 
 To stop the kafka clients run following command
