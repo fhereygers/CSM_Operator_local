@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+import time
+import uuid
+import random
+import argparse
+import json
+import struct
+import requests
+from confluent_kafka import Producer, Consumer, KafkaError
+from fastavro import parse_schema, schemaless_writer, schemaless_reader, validate
+import io
+
+# -----------------------------------------------------------------------------
+# Configuration (Namespace: cld-streaming)
+# -----------------------------------------------------------------------------
+SCHEMA_REGISTRY_URL = "http://schema-registry-service.cld-streaming.svc.cluster.local:9090/api/v1"
+KAFKA_BOOTSTRAP_SERVERS = "my-cluster-kafka-bootstrap.cld-streaming.svc:9092"
+TOPIC_NAME = "telecom-cdr-avro"
+TARGET_SCHEMA_NAME = "telecom-cdr-avro"
+
+TELECOM_AVRO_SCHEMA = {
+  "type": "record",
+  "name": "CallDetailRecord",
+  "namespace": "com.cloudera.telecom.demo",
+  "fields": [
+    { "name": "call_id", "type": "string" },
+    { "name": "subscriber_id", "type": "string" },
+    { "name": "cell_tower_id", "type": "string" },
+    { "name": "call_type", "type": { "type": "enum", "name": "CallType", "symbols": ["VOICE", "SMS", "DATA"] } },
+    { "name": "duration_seconds", "type": "int" },
+    { "name": "data_volume_mb", "type": "double" },
+    { "name": "event_timestamp", "type": "long" }
+  ]
+}
+
+SUBSCRIBERS = [f"SUB-{random.randint(100000, 999999)}" for _ in range(10)]
+TOWERS = ["TOWER-PL-GDN-001", "TOWER-PL-WAW-042", "TOWER-PL-KRK-108", "TOWER-PL-WRO-015"]
+CALL_TYPES = ["VOICE", "SMS", "DATA"]
+
+# -----------------------------------------------------------------------------
+# Cloudera Schema Registry REST Helpers
+# -----------------------------------------------------------------------------
+def fetch_schema_details(schema_name):
+    headers = {"Accept": "application/json"}
+
+    versions_endpoint = f"{SCHEMA_REGISTRY_URL}/schemaregistry/schemas/{schema_name}/versions"
+    print(f"[*] Fetching versions for schema '{schema_name}': {versions_endpoint}")
+    res = requests.get(versions_endpoint, headers=headers)
+
+    schema_version_id = None
+    schema_text = None
+
+    if res.status_code == 200 and "1101" not in res.text:
+        data = res.json()
+        entities = data.get("entities", []) if isinstance(data, dict) else data
+
+        if len(entities) > 0:
+            latest_entry = entities[-1]
+            if isinstance(latest_entry, dict):
+                schema_version_id = latest_entry.get("id") or latest_entry.get("schemaVersionId")
+                schema_text = latest_entry.get("schemaText")
+            elif isinstance(latest_entry, (int, str)):
+                schema_version_id = latest_entry
+
+            print(f"[+] Found existing Version ID: {schema_version_id}")
+
+            if not schema_text and schema_version_id:
+                v_endpoint = f"{SCHEMA_REGISTRY_URL}/schemaregistry/schemas/versions/{schema_version_id}"
+                v_res = requests.get(v_endpoint, headers=headers)
+                if v_res.status_code == 200:
+                    schema_text = v_res.json().get("schemaText")
+        else:
+            print(f"[!] Schema '{schema_name}' has 0 versions. Auto-posting Version 1 text...")
+            schema_version_id, schema_text = upload_first_schema_version(schema_name)
+    else:
+        print(f"[!] Schema versions query returned non-200 / 1101. Registering '{schema_name}'...")
+        schema_version_id, schema_text = upload_first_schema_version(schema_name)
+
+    if schema_text and schema_version_id:
+        print(f"[+] Successfully loaded Version ID: {schema_version_id}")
+        print(f"[+] Schema Text:\n    {schema_text}")
+        schema_dict = json.loads(schema_text)
+        parsed_schema = parse_schema(schema_dict)
+        return int(schema_version_id), parsed_schema, schema_dict
+    else:
+        raise RuntimeError(f"Failed to resolve schema text for '{schema_name}'. Response: {res.text}")
+
+def upload_first_schema_version(schema_name):
+    endpoint = f"{SCHEMA_REGISTRY_URL}/schemaregistry/schemas"
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+    payload = {
+        "schemaGroup": "kafka",
+        "name": schema_name,
+        "type": "avro",
+        "description": "Telecom CDR schema for demo",
+        "compatibility": "BACKWARD",
+        "schemaText": json.dumps(TELECOM_AVRO_SCHEMA)
+    }
+
+    print(f"[*] Registering schema '{schema_name}' via: {endpoint}")
+    res = requests.post(endpoint, json=payload, headers=headers)
+
+    if res.status_code in (200, 201):
+        res_data = res.json()
+        if isinstance(res_data, dict):
+            version_id = res_data.get("id") or res_data.get("schemaVersionId") or res_data.get("version")
+        else:
+            version_id = res_data
+
+        print(f"[+] Successfully registered schema Version ID: {version_id}")
+        return version_id, json.dumps(TELECOM_AVRO_SCHEMA)
+    else:
+        alt_endpoint = f"{SCHEMA_REGISTRY_URL}/schemaregistry/schemas/versions"
+        alt_payload = {
+            "schemaMetadataName": schema_name,
+            "description": "Version 1 for Telecom CDR demo",
+            "schemaText": json.dumps(TELECOM_AVRO_SCHEMA)
+        }
+        print(f"[*] Retrying version upload via: {alt_endpoint}")
+        alt_res = requests.post(alt_endpoint, json=alt_payload, headers=headers)
+
+        if alt_res.status_code in (200, 201):
+            alt_data = alt_res.json()
+            version_id = alt_data.get("id") if isinstance(alt_data, dict) else alt_data
+            print(f"[+] Successfully uploaded Version ID via fallback: {version_id}")
+            return version_id, json.dumps(TELECOM_AVRO_SCHEMA)
+        else:
+            raise RuntimeError(f"Failed to upload schema version: HTTP {alt_res.status_code} - {alt_res.text}")
+
+def pack_cloudera_header(schema_version_id, avro_bytes):
+    header = struct.pack(">Bq", 0x1, int(schema_version_id))
+    return header + avro_bytes
+
+def unpack_cloudera_header(payload_bytes):
+    protocol_id, schema_version_id = struct.unpack(">Bq", payload_bytes[:9])
+    avro_bytes = payload_bytes[9:]
+    return schema_version_id, avro_bytes
+
+# -----------------------------------------------------------------------------
+# Telecom CDR Generators
+# -----------------------------------------------------------------------------
+def generate_valid_cdr():
+    call_type = random.choice(CALL_TYPES)
+    duration = random.randint(5, 1800) if call_type != "SMS" else 0
+    data_volume = round(random.uniform(1.0, 1024.0), 2) if call_type == "DATA" else 0.0
+
+    return {
+        "call_id": str(uuid.uuid4()),
+        "subscriber_id": random.choice(SUBSCRIBERS),
+        "cell_tower_id": random.choice(TOWERS),
+        "call_type": call_type,
+        "duration_seconds": duration,
+        "data_volume_mb": data_volume,
+        "event_timestamp": int(time.time() * 1000)
+    }
+
+def generate_malformed_cdr():
+    return {
+        "call_id": str(uuid.uuid4()),
+        "subscriber_id": "SUB-INVALID-999",
+        "cell_tower_id": "TOWER-PL-GDN-001",
+        "call_type": "5G_VIDEO",        # FAILS: Invalid enum symbol
+        "duration_seconds": "LONG_VAL",   # FAILS: String instead of int
+        "data_volume_mb": 512.0,
+        "event_timestamp": int(time.time() * 1000)
+    }
+
+# -----------------------------------------------------------------------------
+# Producer Engine
+# -----------------------------------------------------------------------------
+def run_producer():
+    schema_id, parsed_schema, schema_dict = fetch_schema_details(TARGET_SCHEMA_NAME)
+
+    producer = Producer({'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS})
+    print(f"[*] Started Telecom CDR Producer -> Topic: {TOPIC_NAME} | Schema ID: {schema_id}\n")
+
+    count = 1
+    try:
+        while True:
+            if count % 5 == 0:
+                print(f"[{count}] Attempting to produce MALFORMED CDR (Negative Test)...")
+                bad_record = generate_malformed_cdr()
+                try:
+                    if not validate(bad_record, parsed_schema):
+                        raise ValueError("Record rejected by Avro Schema contract")
+                except Exception as e:
+                    print(f"    [X] REJECTED BY SCHEMA REGISTRY CONTRACT: {e} - Data governed successfully!")
+            else:
+                record = generate_valid_cdr()
+
+                # Serialize Avro
+                out = io.BytesIO()
+                schemaless_writer(out, parsed_schema, record)
+                raw_avro = out.getvalue()
+
+                # Prepend Cloudera Header
+                payload = pack_cloudera_header(schema_id, raw_avro)
+
+                producer.produce(TOPIC_NAME, value=payload)
+                producer.flush()
+                print(f"[{count}] Sent Valid CDR [SR ID: {schema_id}]: Sub={record['subscriber_id']} | Type={record['call_type']} | Tower={record['cell_tower_id']}")
+
+            count += 1
+            time.sleep(1.5)
+
+    except KeyboardInterrupt:
+        print("\n[*] Stopping Producer.")
+
+# -----------------------------------------------------------------------------
+# Consumer Engine
+# -----------------------------------------------------------------------------
+def run_consumer():
+    consumer = Consumer({
+        'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
+        'group.id': 'csm-telecom-consumer-group',
+        'auto.offset.reset': 'latest'
+    })
+
+    consumer.subscribe([TOPIC_NAME])
+    print(f"[*] Started Telecom CDR Consumer -> Subscribed to: {TOPIC_NAME}")
+    print("[*] Resolving schema definitions dynamically from Schema Registry...\n")
+
+    schema_cache = {}
+
+    try:
+        while True:
+            msg = consumer.poll(1.0)
+            if msg is None or msg.error():
+                continue
+
+            raw_payload = msg.value()
+
+            # Extract Cloudera Schema ID header
+            schema_id, avro_bytes = unpack_cloudera_header(raw_payload)
+
+            # Fetch and cache schema if missing
+            if schema_id not in schema_cache:
+                print(f"[*] Cache Miss for Schema ID {schema_id}. Resolving from Schema Registry...")
+                fetched_id, parsed_schema, _ = fetch_schema_details(TARGET_SCHEMA_NAME)
+                schema_cache[schema_id] = parsed_schema
+
+            remote_schema = schema_cache[schema_id]
+
+            # Deserialize Avro payload
+            bytes_io = io.BytesIO(avro_bytes)
+            cdr = schemaless_reader(bytes_io, remote_schema)
+
+            print(f"[RECV] Partition:{msg.partition()} Offset:{msg.offset()} [Resolved Schema Version ID: {schema_id}]")
+            print(f"       Call ID:     {cdr['call_id']}")
+            print(f"       Subscriber:  {cdr['subscriber_id']}")
+            print(f"       Type/Tower:  {cdr['call_type']} @ {cdr['cell_tower_id']}")
+            print(f"       Usage:       {cdr['duration_seconds']}s / {cdr['data_volume_mb']} MB")
+            print("-" * 60)
+    except KeyboardInterrupt:
+        print("\n[*] Stopping Consumer.")
+    finally:
+        consumer.close()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Cloudera Schema Registry Demo")
+    parser.add_argument("--mode", choices=["producer", "consumer"], required=True, help="Mode to run script in")
+    args = parser.parse_args()
+
+    if args.mode == "producer":
+        run_producer()
+    elif args.mode == "consumer":
+        run_consumer()
