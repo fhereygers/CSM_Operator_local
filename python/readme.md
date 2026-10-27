@@ -1,5 +1,7 @@
 ## Deploy a telecommunication use case on the deployed kafka cluster and Schema Registry
 
+**This directory includes the original solution, based upon python. The main solution is now based upon Java
+
 Following telecommunication use case shows the processing of Call Detail Records using kafka and cloudera Schema Registry:
 - K8s Operator Abstraction: Topic management and streaming infrastructure running natively via CSM Operator CRDs.
 - Dynamic Schema Resolution: Both Producer and Consumer dynamically communicate over HTTP REST with Cloudera Schema Registry using the Cloudera SerDe Wire Protocol (0x01 magic byte + 8-byte schemaVersionId header).
