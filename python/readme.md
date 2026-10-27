@@ -1,6 +1,6 @@
 ## Deploy a telecommunication use case on the deployed kafka cluster and Schema Registry
 
-**This directory includes the original solution, based upon python. The main solution is now based upon Java
+**This directory includes the original solution, based upon python. The main solution is now based upon Java.**
 
 Following telecommunication use case shows the processing of Call Detail Records using kafka and cloudera Schema Registry:
 - K8s Operator Abstraction: Topic management and streaming infrastructure running natively via CSM Operator CRDs.
