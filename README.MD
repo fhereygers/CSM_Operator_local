@@ -228,13 +228,15 @@ oci://container.repository.cloudera.com/cloudera-helm/csm-operator/schema-regist
 
 ## Deploy a telecommunication use case on the deployed kafka cluster and Schema Registry
 
+**Java Version**
+
 Following telecommunication use case shows the processing of Call Detail Records using kafka and cloudera Schema Registry:
 - K8s Operator Abstraction: Topic management and streaming infrastructure running natively via CSM Operator CRDs.
 - Dynamic Schema Resolution: Both Producer and Consumer dynamically communicate over HTTP REST with Cloudera Schema Registry using the Cloudera SerDe Wire Protocol (0x01 magic byte + 8-byte schemaVersionId header).
 - Data Quality & Governance: The Producer client validates payloads locally against Schema Version ID 3 (telecom-cdr-avro), preventing invalid events (e.g., corrupted call_type enums) from polluting Kafka.
 - End-to-End Deserialization: The Consumer resolves Schema Version ID 3 dynamically from the registry and parses incoming Avro binary byte payloads back into structured Telecom CDR records.
 
-The python code includes follwoing capabilities:
+The code includes following capabilities:
 - Schema Resolution & Dynamic Creation (ensure_schema_exists): Checks whether telecom-cdr-avro exists in the Cloudera Schema Registry via REST API. If found, it fetches the latest active Version ID and Avro definition; if missing, it registers both the schema metadata and Version 1 automatically using a POST request.
 - Cloudera SerDe Protocol Headers (pack_cloudera_header / unpack_cloudera_header): Implements binary byte packing/unpacking using struct.pack(">Bq", ...) to prepending a 9-byte wire header (0x01 magic byte + 8-byte big-endian schemaVersionId) to all serialized Avro payloads.
 - CDR Event Generators (generate_valid_cdr / generate_malformed_cdr): Provides mock data generators for realistic Telecom events (VOICE, SMS, DATA) and intentionally bad events (unsupported 5G_VIDEO enum value, non-numeric duration string) used to demonstrate data governance contract enforcement.
@@ -242,34 +244,52 @@ The python code includes follwoing capabilities:
 - Consumer Pipeline (run_consumer): Subscribes to the Kafka topic, extracts the 8-byte schemaVersionId from incoming message headers, dynamically fetches and caches un-cached schemas from the Registry, and deserializes the Avro binary payloads back into structured JSON CDR records.
 
 
+Create a kafka topic **telecom-cdr-avro** in the cluster
+
+```
+IMAGE=$(kubectl get pod my-cluster-broker-0  --namespace cld-streaming --output jsonpath='{.spec.containers[0].image}')
+kubectl run kafka-admin -it \
+  --namespace cld-streaming \
+  --image=$IMAGE \
+  --rm=true \
+  --restart=Never \
+  --command -- /opt/kafka/bin/kafka-topics.sh \
+    --bootstrap-server my-cluster-kafka-bootstrap:9092 \
+    --create \
+    --topic telecom-cdr-avro  
+```
+
+
 Start the kafka producer pod and the kafka consumer pod with following command
 
 ```
-kubectl apply -f cdr-demo-pod.yaml -n cld-streaming  
+kubectl apply -f cld-java-telecom-demo.yaml -n cld-streaming  
 ```
 
 To display the producer output, open a separate terminal window and run
 ```
-kubectl logs -f telecom-cdr-producer-pod -n cld-streaming
+kubectl logs -f java-telecom-cdr-producer-pod -n cld-streaming
 ```
 
 <br/>
-<img src="producer.png" width="90%">
+<img src="producerjava.png" width="90%">
 <br/>
 
 To display the consumer output, open a separate terminal window and run
+
+
 ```
-kubectl logs -f telecom-cdr-consumer-pod -n cld-streaming
+kubectl logs -f java-telecom-cdr-consumer-pod -n cld-streaming
 ```
 
 <br/>
-<img src="consumer.png" width="60%">
+<img src="consumerjava.png" width="60%">
 <br/>
 
 To stop the kafka clients run following command
 
 ```
-kubectl delete -f cdr-demo-pod.yaml -n cld-streaming 
+kubectl delete -f cld-java-telecom-demo.yaml -n cld-streaming 
 ```
 
 
