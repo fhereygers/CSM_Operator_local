@@ -5,6 +5,7 @@ When deleting kafka topics, it is good practice to also make sure that there are
 Below you find an exercise, that tests whether there are still active consumer groups and whether there are events in the topic. 
 This test can be build into business logic of a self service portal, hat would allow end users to administrate their own topics.
 
+Instead of using the standard kafka CLI tool, I opted for sending API requests to the surveyor, as this capability already has already all information available
 Following code is executing the checks:
 
 ```
@@ -33,16 +34,81 @@ fi
 echo "[PASS] Topic is completely empty (0 messages) and has 0 active consumers. Safe to delete."
 ```
 
-
+Make sure that both producer pod and consumer pod are started with following command
 
 ```
-podman machine init --cpus 6 --memory 14336
-podman machine start
+kubectl apply -f cld-java-telecom-demo.yaml -n cld-streaming  
 ```
 
+Run the topic check a first time
+
+```
+kubectl delete job telecom-topic-deletion-gate -n cld-streaming --ignore-not-found
+kubectl apply -f topic-check-job.yaml
+kubectl logs -f job/telecom-topic-deletion-gate -n cld-streaming
+```
+
+You should get following result
 
 <br/>
-<img src="surveyor_ui.png" width="90%">
+<img src="check1.png" width="90%">
+<br/>
+
+
+Now stop the consumer to get to the next check in the code
+
+```
+kubectl delete pod java-telecom-cdr-consumer-pod -n cld-streaming
+```
+
+```
+kubectl delete job telecom-topic-deletion-gate -n cld-streaming --ignore-not-found
+kubectl apply -f topic-check-job.yaml
+kubectl logs -f job/telecom-topic-deletion-gate -n cld-streaming
+```
+
+You should get following result
+
+<br/>
+<img src="check2.png" width="90%">
+<br/>
+
+Now stop the producer and flush the topic
+
+```
+kubectl delete pod java-telecom-cdr-producer-pod -n cld-streaming
+```
+
+```
+kubectl exec -it my-cluster-broker-0 -n cld-streaming -c kafka -- sh -c '
+cat <<EOF > /tmp/purge-topic.json
+{
+  "partitions": [
+    {
+      "topic": "telecom-cdr-avro",
+      "partition": 0,
+      "offset": -1
+    }
+  ],
+  "version": 1
+}
+EOF
+bin/kafka-delete-records.sh --bootstrap-server localhost:9092 --offset-json-file /tmp/purge-topic.json
+'
+```
+
+Wait for somewhat 1 minute for the surveyor to pick on the event amount
+
+```
+kubectl delete job telecom-topic-deletion-gate -n cld-streaming --ignore-not-found
+kubectl apply -f topic-check-job.yaml
+kubectl logs -f job/telecom-topic-deletion-gate -n cld-streaming
+```
+
+You should get following result
+
+<br/>
+<img src="check3.png" width="90%">
 <br/>
 
 
